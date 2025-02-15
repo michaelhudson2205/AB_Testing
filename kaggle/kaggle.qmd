@@ -3,4 +3,192 @@ title: "kaggle"
 format: html
 ---
 
-### A/B Testing
+### EDA & A/B Testing with R
+
+<https://www.kaggle.com/code/timothyabwao/eda-a-b-testing-with-r>
+
+```{r message=FALSE}
+# Load libraries
+library(tidyverse)
+library(infer)
+library(scales)
+library(vroom)
+
+set.seed(2023)
+```
+
+```{r}
+# Improve appearance of plots
+theme_update(
+  axis.text = element_text(family = "serif", size = 12),
+  axis.title = element_text(family = "serif", size = 13),
+  plot.title = element_text(family = "serif", size = 16, hjust = 0.5),
+  legend.text = element_text(family = "serif"),
+  legend.title = element_text(family = "serif")
+)
+options(repr.plot.width = 8, repr.plot.height = 4.5, repr.plot.res = 150)
+```
+
+[This dataset](https://www.kaggle.com/datasets/putdejudomthai/ecommerce-ab-testing-2022-dataset1/) contains A/B test results for an e-commerce website. A subset of users were exposed to a new landing page, and the current goal is to assess the effect of this new page on the conversion rate.
+
+```{r message=FALSE}
+# Load the data
+ab_data <- vroom("ab_data.csv")
+slice_sample(ab_data, n = 5)
+```
+
+```{r}
+ab_data <- ab_data |> 
+  mutate(landing_page = fct_rev(landing_page), # set order to (old_page, new_page)
+         converted = factor(converted)) # categorical required in infer proportion tests
+```
+
+### Exploratory Data Analysis
+
+```{r}
+ab_data |> 
+  group_by(group) |> 
+  tally()
+```
+
+There were 147,202 users in the control group and 147,278 users in the treatment group.
+
+Some of the users appear more than once:
+
+```{r}
+ab_data |> 
+  group_by(user_id) |> 
+  add_tally(name = "num_of_appearances") |> 
+  arrange(desc(num_of_appearances), user_id) |> 
+  head()
+```
+
+The conversion rate is slightly higher in the control group (0.1204 vs 0.1189), indicating that the new landing page performed poorly.
+
+```{r}
+conversion_rate_by_group <- ab_data |> 
+  group_by(group) |> 
+  summarise(conversion_rate = mean(converted == "1"))
+
+conversion_rate_by_group
+```
+
+```{r}
+conversion_rate_by_group |> 
+  ggplot(aes(x = group, y = conversion_rate, fill = group)) +
+  geom_col(width = 0.5) +
+  geom_label(aes(label = label_number()(conversion_rate)), family = "serif") +
+  labs(x = "Group", y = "Conversion Rate", title = "Conversion Rate by Group") +
+  guides(fill = "none")
+```
+
+Some of the users in the control group were exposed to the new page, and some of the users in the treatment group were exposed to the old page:
+
+```{r}
+ab_data |> 
+  group_by(group, landing_page) |> 
+  summarise(count = n(), .groups = "drop") |> 
+  ggplot(aes(x = group, y = count, fill = landing_page)) +
+  geom_col(position = position_dodge(width = 1)) +
+  geom_label(aes(label = label_comma()(count)), position = position_dodge(width = 1), size = 3.5, family = "serif") +
+  labs(title = "Count of Users by Group & Page", x = "Group") +
+  scale_y_continuous(name = "Count", labels = comma)
+```
+
+The new page did better in the control group. The old page did better in the treatment group:
+
+```{r}
+ab_data |> 
+  group_by(group, landing_page) |> 
+  summarise(conversion_rate = mean(converted == "1"), .groups = "drop") |> 
+  ggplot(aes(x = group, y = conversion_rate, fill = landing_page)) +
+  geom_col(position = position_dodge(width = 1)) +
+  geom_label(aes(label = label_number()(conversion_rate)), family = "serif", position = position_dodge(width = 1)) +
+  labs(x = "Group", y = "Conversion Rate", title = "Conversion Rate by Group & Page")
+```
+
+Though the sample sizes vary, these mixed results again suggest that the new page hasn't noticeably boosted conversions.
+
+### Inference
+
+**A. 95% Confidence Interval**
+
+Let's construct a 95% confidence interval for the difference in conversion rates between the test group and the control group. The observed value from our data is -0.001481, which is quite small:
+
+```{r}
+diff_in_proportions <- ab_data |> 
+  specify(formula = converted ~ group, success = "1") |> 
+  calculate("diff in props", order = c("treatment", "control"))
+
+diff_in_proportions
+```
+
+We will proceed as follows:
+
+- estimate the sampling distribution of the difference in proportions (conversion rates) using bootstrap resampling
+
+- use the estimated standard error from the bootstrap distribution to create the confidence interval.
+
+```{r}
+bootstrap_dist <- ab_data |> 
+  specify(formula = converted ~ group, success = "1") |> 
+  generate(reps = 500, type = "bootstrap") |> 
+  calculate(stat = "diff in props", order = c("treatment", "control"))
+
+visualise(bootstrap_dist) +
+  labs(x = "Difference in Conversion Rates", y = "Count")
+```
+
+```{r}
+ci <- get_ci(x = bootstrap_dist, 
+             level = 0.95, 
+             type = "se", 
+             point_estimate = diff_in_proportions)
+
+ci
+```
+
+```{r}
+visualise(bootstrap_dist) +
+  shade_confidence_interval(ci) +
+  labs(x = "Difference in Conversion Rates",
+       y = "Count",
+       title = "95% Confidence Interval")
+```
+
+We can say with 95% certainty that the difference in conversion rates is in the range (-0.003795, 0.000832).
+
+Zero is inside this confidence interval, implying that the difference in conversion rates is quite possibly not statistically significant (the difference can be zero i.e. no difference).
+
+**B. Hypothesis Testing**
+
+Is the conversion rate for the treatment group significantly different from that of the control group?
+
+$H_0:\hat{\rho}_t-\hat{\rho}_c=0$
+
+$H_1:\hat{\rho}_t-\hat{\rho}_c\neq0$
+
+#### I. Simulation
+
+This involves approximating the sampling distribution of the difference in conversion rates under the assumption that the null hypothesis is true.
+
+
+
+#### II. Theoretical
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
