@@ -3,4 +3,192 @@ title: "geeksforgeeks"
 format: html
 ---
 
-### A/B Testing
+### A/B Testing With R Programming
+
+<https://www.geeksforgeeks.org/ab-testing-with-r-programming/>
+
+Split testing is another name of A/B testing and it is a common or general methodology. It is used online when one wants to test a new feature or a product. The main agenda over here is to design an experiment that gives repeatable results and robust to make an informed decision to launch it or not. Generally, this test includes a comparison of two web pages by representing variants A and B for them, as the number of visitors is similar the conversion rate given by the variant becomes better. Overall, it is an experiment where two or more variations of the same web page are compared against together by showcasing them to real-time visitors, and through that determines which one performs better for a given goal. A/B testing is not only used or limited by web pages only, it can be used in emails, popups, sign-up forms, apps, and more. Let's look into the example of a case study. So let's implement AB testing in the R language.
+
+#### Case Study
+
+Let's imagine we have results of A/B tests from two hotel booking websites (Note: the data is not the real one). First, we need to conduct a test analysis ofthe data; second, we need to draw conclusions from the data which we obtained from the first step, and in the final step, we make recommendations or suggestions to the product or management teams.
+
+#### Data Set Summary
+
+Download the data set from [here](https://github.com/etomaa/A-B-Testing/tree/master/data). ***NB. I have already included the data set in this folder.***
+
+- Variant A is from the control group which tells the existing features or products on a website.
+
+- Variant B is from the experimental group to check the new version of a feature or product to see if users like it or if it increases the conversions(bookings).
+
+- Converted is based on the data set given,there are two categories defined by logical value. It is going to show true when the customer completes bookings and it is going to show false when the customer visits the sites but not makes a booking.
+
+#### Test Hypothesis
+
+- **Null Hypothesis:** Both versions A and B have an equal probability of conversion or driving customer booking. In other words, there is no difference or no effect between A nd B versions.
+
+- **Alternative Hypothesis:** Versions both A and B possess different probability of conversion or driving customer booking and there is a difference between A and B version. Version B is better than version A in driving customer bookings. **PExp_B != Pcont_A**.
+
+#### Analysis in R
+
+**1. Prepare the dataset and load the tidyverse library which contains the relevant packages used for the analysis.**
+
+```{r message=FALSE}
+# load the libraries
+library(tidyverse)
+library(vroom)
+library(glue)
+```
+
+```{r message=FALSE}
+# Import the data
+ABTest <- vroom("Website Results.csv")
+```
+
+```{r}
+glimpse(ABTest)
+```
+
+
+**2. Filter conversions for variants A & B and compute their corresponding conversion rates**
+
+variant A
+
+```{r}
+# Let's filter out conversions for variant_A
+conversion_subset_A <- ABTest |> 
+  filter(variant == "A" & converted == TRUE)
+
+# Total number of conversions for variant_A
+conversions_A <- nrow(conversion_subset_A)
+
+# Number of visitors for variant_A
+visitors_A <- nrow(ABTest |> 
+                     filter(variant == "A"))
+
+# Conversion_rate_A
+conv_rate_A <- conversions_A/visitors_A
+glue("Conversion rate for variant A: {conv_rate_A}")
+```
+
+variant B
+
+```{r}
+# Let's filter out conversions for variant_B
+conversion_subset_B <- ABTest |> 
+  filter(variant == "B" & converted == TRUE)
+
+# Total number of conversions for variant_B
+conversions_B <- nrow(conversion_subset_B)
+
+# Number of visitors for variant_B
+visitors_B <- nrow(ABTest |> 
+                     filter(variant == "B"))
+
+# Conversion_rate_B
+conv_rate_B <- conversions_B/visitors_B
+glue("Conversion rate for variant B: {conv_rate_B}")
+```
+
+**3. Compute the relative uplift using conversion rates A & B. The uplift is a percentage of the increase**
+
+```{r}
+uplift <- (conv_rate_B - conv_rate_A) / conv_rate_A * 100
+glue("uplift is {round(uplift, 2)}%")
+```
+
+B is better than A by 83%. This is high enough to decide a winner.
+
+**4. Compute the pooled probability, standard error, the margin of error, and difference in proportion (point estimate) for variants A & B**
+
+```{r}
+# Pooled sample proportion for variants A & B
+p_pool <- (conversions_A + conversions_B) / (visitors_A + visitors_B)
+glue("p_pool: {p_pool}")
+
+# Let's compute standard error for variants A & B (SE_pool)
+SE_pool <- sqrt(p_pool * (1 - p_pool) * ((1 / visitors_A) + (1 / visitors_B)))
+glue("SE_pool: {SE_pool}")
+
+# Let's compute the margin of error for the pool
+MOE <- SE_pool * qnorm(0.975)
+glue("MOE: {MOE}")
+
+# Point Estimate or Difference in proportion
+d_hat <- conv_rate_B - conv_rate_A
+glue("d_hat: {d_hat}")
+```
+
+**5. Compute the z-score**
+
+```{r}
+# Compute the z-score so we can determine the p-value
+z_score <- d_hat / SE_pool
+glue("z_score: {z_score}")
+```
+
+**6. Using this z-score, determine the p-value**
+
+```{r}
+# Compute p_value using the z_score value
+p_value <- pnorm(q = -z_score, mean = 0, sd = 1) * 2
+glue("p_value: {p_value}")
+```
+
+**7. Compute the confidence interval for the pool**
+
+```{r}
+# Compute confidence interval for the pool using pre-calculated results
+ci <- c(d_hat - MOE, d_hat + MOE)
+glue("confidence interval for the pool: {glue_collapse(ci, sep = ' ')}")
+
+# Compute confidence interval for variant A
+X_hat_A <- conversions_A / visitors_A
+se_hat_A <- sqrt(X_hat_A * (1 - X_hat_A) / visitors_A)
+ci_A <- c(X_hat_A - qnorm(0.975) * se_hat_A,
+          X_hat_A + qnorm(0.975) * se_hat_A)
+glue("confidence interval for variant A: {glue_collapse(ci_A, sep = ' ')}")
+
+# Compute confidence interval for variant B
+X_hat_B <- conversions_B / visitors_B
+se_hat_B <- sqrt(X_hat_B * (1 - X_hat_B) / visitors_B)
+ci_B <- c(X_hat_B - qnorm(0.975) * se_hat_B,
+          X_hat_B + qnorm(0.975) * se_hat_B)
+glue("confidence interval for variant B: {glue_collapse(ci_B, sep = ' ')}")
+```
+
+**8. Visualise the results computed so far in a dataframe (table)**
+
+```{r}
+vis_result_pool <- data.frame(
+  metric = c(
+    "Estimated Difference",
+    "Relative Uplift(%)",
+    "pooled sample proportion",
+    "Standard Error of Difference",
+    "z-score",
+    "p-value",
+    "Margin of Error"
+  ),
+  value = c(
+    conv_rate_B - conv_rate_A,
+    uplift,
+    p_pool,
+    SE_pool,
+    z_score,
+    p_value,
+    MOE
+  )
+)
+vis_result_pool
+```
+
+**Recommendation & Conclusions**
+
+- Variant A has 20 conversions and 721 hits whereas Variant B has 37 conversions and 730 hits.
+
+- Relative uplift of 82.72% based on a variant A conversion rate of 2.77% compared to variant B of 5.07%. Hence, variant B is better than A by 82.72%.
+
+- For this analysis p-value was computed to be 0.02448. Hence, there is strong statistical significance in test results.
+
+- Reject the null hypothesis and proceed with the launch of variant B.
