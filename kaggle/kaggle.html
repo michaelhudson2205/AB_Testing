@@ -349,10 +349,60 @@ Explanatory: group (factor)
 <section id="i.-simulation" class="level4">
 <h4 class="anchored" data-anchor-id="i.-simulation">I. Simulation</h4>
 <p>This involves approximating the sampling distribution of the difference in conversion rates under the assumption that the null hypothesis is true.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>null_dist <span class="ot">&lt;-</span> ab_data <span class="sc">|&gt;</span> </span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">specify</span>(converted <span class="sc">~</span> group, <span class="at">success =</span> <span class="st">"1"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">hypothesise</span>(<span class="at">null =</span> <span class="st">"independence"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">generate</span>(<span class="at">reps =</span> <span class="dv">500</span>, <span class="at">type =</span> <span class="st">"permute"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">calculate</span>(<span class="at">stat =</span> <span class="st">"diff in props"</span>, <span class="at">order =</span> <span class="fu">c</span>(<span class="st">"treatment"</span>, <span class="st">"control"</span>))</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="fu">visualise</span>(null_dist) <span class="sc">+</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">shade_p_value</span>(<span class="at">obs_stat =</span> diff_in_proportions, <span class="at">direction =</span> <span class="st">"both"</span>) <span class="sc">+</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Difference in Conversion Rates"</span>, <span class="at">y =</span> <span class="st">"Count"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="kaggle_files/figure-html/unnamed-chunk-15-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">get_p_value</span>(null_dist, <span class="at">obs_stat =</span> diff_in_proportions, <span class="at">direction =</span> <span class="st">"both"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 1 × 1
+  p_value
+    &lt;dbl&gt;
+1    0.18</code></pre>
+</div>
+</div>
+<p>We fail to reject the null hypothesis at level of significance 0.05 since the <em>p-value</em> 0.18 &gt; 0.05. We do not have sufficient evidence that the difference in conversion rates is statistically significant.</p>
 </section>
 <section id="ii.-theoretical" class="level4">
 <h4 class="anchored" data-anchor-id="ii.-theoretical">II. Theoretical</h4>
+<p><a href="https://infer.tidymodels.org/reference/prop_test.html">prop_test</a> can be used to test the null hypothesis that the proportions in several groups are similar (difference = 0).</p>
+<p>It performs <a href="https://en.wikipedia.org/wiki/Pearson%27s_chi-squared_test">Pearson’s Chi-squared test</a>, which requires that:</p>
+<ul>
+<li><p>sample data is drawn at random (depends on how this dataset was collected - we will assume it was random)</p></li>
+<li><p>the sample is sufficiently large (this condition is met)</p></li>
+<li><p>observations are independent of each other (some users appear more than once - not fully met)</p></li>
+</ul>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">prop_test</span>(ab_data, converted <span class="sc">~</span> group, <span class="at">order =</span> <span class="fu">c</span>(<span class="st">"control"</span>, <span class="st">"treatment"</span>), <span class="at">conf_level =</span> <span class="fl">0.95</span>, <span class="at">success =</span> <span class="st">"1"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 1 × 6
+  statistic chisq_df p_value alternative  lower_ci upper_ci
+      &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;           &lt;dbl&gt;    &lt;dbl&gt;
+1      1.52        1   0.218 two.sided   -0.000870  0.00383</code></pre>
+</div>
+</div>
+<p>Once again, the <em>p-value</em> 0.2177 &gt; 0.05 and we fail to reject the null hypothesis.</p>
 </section>
+</section>
+<section id="conclusion" class="level3">
+<h3 class="anchored" data-anchor-id="conclusion">Conclusion</h3>
+<p>The new landing page did not boost the conversion rate. The difference in conversion rates between the new page and the old one is not statistically significant.</p>
+<p>We need to investigate what aspects of the new landing page failed to motivate purchases, and make the necessary improvements.</p>
 </section>
 
 </main>

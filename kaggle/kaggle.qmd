@@ -172,23 +172,44 @@ $H_1:\hat{\rho}_t-\hat{\rho}_c\neq0$
 
 This involves approximating the sampling distribution of the difference in conversion rates under the assumption that the null hypothesis is true.
 
+```{r}
+null_dist <- ab_data |> 
+  specify(converted ~ group, success = "1") |> 
+  hypothesise(null = "independence") |> 
+  generate(reps = 500, type = "permute") |> 
+  calculate(stat = "diff in props", order = c("treatment", "control"))
 
+visualise(null_dist) +
+  shade_p_value(obs_stat = diff_in_proportions, direction = "both") +
+  labs(x = "Difference in Conversion Rates", y = "Count")
+```
+
+```{r}
+get_p_value(null_dist, obs_stat = diff_in_proportions, direction = "both")
+```
+
+We fail to reject the null hypothesis at level of significance 0.05 since the *p-value* 0.18 > 0.05. We do not have sufficient evidence that the difference in conversion rates is statistically significant.
 
 #### II. Theoretical
 
+[prop_test](https://infer.tidymodels.org/reference/prop_test.html) can be used to test the null hypothesis that the proportions in several groups are similar (difference = 0).
 
+It performs [Pearson's Chi-squared test](https://en.wikipedia.org/wiki/Pearson%27s_chi-squared_test), which requires that:
 
+- sample data is drawn at random (depends on how this dataset was collected - we will assume it was random)
 
+- the sample is sufficiently large (this condition is met)
 
+- observations are independent of each other (some users appear more than once - not fully met)
 
+```{r}
+prop_test(ab_data, converted ~ group, order = c("control", "treatment"), conf_level = 0.95, success = "1")
+```
 
+Once again, the *p-value* 0.2177 > 0.05 and we fail to reject the null hypothesis.
 
+### Conclusion
 
+The new landing page did not boost the conversion rate. The difference in conversion rates between the new page and the old one is not statistically significant.
 
-
-
-
-
-
-
-
+We need to investigate what aspects of the new landing page failed to motivate purchases, and make the necessary improvements.
