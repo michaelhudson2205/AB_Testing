@@ -1,0 +1,54 @@
+---
+title: "datacamp"
+format: html
+---
+
+
+
+```{r message=FALSE}
+# Load libraries
+library(tidyverse)
+library(vroom)
+library(pwr)
+```
+
+### Format and histograms
+
+A/B designs consist of two groups, each containing data from different participants. This means a long format dataset is ideal. To get an understanding of the groups' data, histograms can be created, which are analyzed in the A/B tests to determine if they are significantly different.
+
+A company has collected data on their employees and is interested in investigating whether those who are social drinkers, `Drinker.yes` are absent from work more often than those who are not social drinkers, `Drinker.no`. Transform the dataset from wide to long, then create a histogram of the social drinking groups and how often they are absent from work.
+
+```{r}
+absenteeism <- vroom("data_to_clean_cleaned_v2.csv")
+```
+
+```{r}
+# Transform the data from wide to long
+longabsent <- absenteeism |> 
+  pivot_longer(cols = c("Drinker.yes", "Drinker.no"),
+               names_to = "Group",
+               values_to = "Absence") |> 
+  na.omit()
+```
+
+```{r}
+# Create a histogram of each group
+ggplot(data = longabsent, aes(x = Absence, fill = Group)) +
+  geom_histogram() +
+  facet_grid(Group~.)
+```
+
+### Sampling
+
+### Determine the ideal sample size
+
+When running an experiment and statistical analyses of any sort, sample size is an important consideration. A sample size that is too small will not reveal an effect, regardless of whether there is an effect present to be found. Prior to collecting data, a power analysis can be run to determine the minimum sample size that must be collected to effectively detect an effect, dependent on the analysis that will be performed on the collected data.
+
+```{r}
+# Determine the sample size needed for a two-tailed, one sample t-test with
+# an effect size of 0.8, power of 0.9, and significance of 0.05.
+pwr.t.test(d = 0.8, power = 0.9, sig.level = 0.05, type = "one.sample", alternative = "two.sided")
+```
+
+
+
