@@ -3,4 +3,237 @@ title: "mattdancho"
 format: html
 ---
 
+<https://www.youtube.com/watch?v=Otb340lyiAQ>
+
+<https://www.r-bloggers.com/2023/12/introduction-to-a-b-testing-in-r-for-marketing-analytics/>
+
 ### A/B Testing
+
+Business Science
+Lab 89: Causal Inference in R
+Part 1: A/B Testing (Beginner)
+Hotel Bookings and Adspend Analysis
+
+Questions:
+
+1. Does Adspend increase bookings?
+
+2. By how much? Was there a Return on Adspend (ROAS)?
+
+Can we create an experiment?
+
+- Yes. We can work with Marketing to design Google Ads for keyword searches (e.g. travel to Chicago)
+
+- We can set Treatment and Control by Geography, which allows us to match bookings through the experiment
+
+- This is called GeoExperimentation: Where the treatment is administered at the geo-level
+
+```{r message=FALSE}
+# Load libraries
+library(tidyverse)
+library(infer)
+library(timetk)
+library(plotly)
+library(vroom)
+```
+
+Data & Experiemnt Setup
+
+- period = 0: Pre/Post Experiment, 1: During Experiment
+
+- assignment = "control" part of the control group, "treatment" part of the treatment group
+
+- treatment = 0: No Adspend, 1: Adspend
+
+- geo: Segmentation was performed by geography
+
+- bookings: Target feature
+
+- cost: Adspend
+
+```{r}
+hotel_bookings_raw_tbl <- vroom("hotel_bookings_geo_experiment.csv")
+
+hotel_bookings_raw_tbl
+```
+
+```{r}
+PRE_INTERVENTION <- c("2015-01-05", "2015-02-15") |> as_date()
+POST_INTERVENTION <- c("2015-02-16", "2015-03-15") |> as_date()
+```
+
+### This from the r-bloggers article
+
+```{r}
+bookings_by_assignment_over_time_tbl <- hotel_bookings_raw_tbl |> 
+  group_by(assignment) |> 
+  summarise_by_time(
+    bookings = sum(bookings),
+    cost = sum(cost),
+    .by = "day"
+  ) |> 
+  ungroup()
+
+bookings_by_assignment_over_time_tbl |> 
+  group_by(assignment) |> 
+  plot_time_series(
+    date, bookings,
+    .color_var = assignment,
+    .interactive = FALSE,
+    .title = "Adspend Effect"
+  ) +
+  annotate(
+    "rect",
+    xmin = as_date("2015-02-16"),
+    xmax = as_date("2015-03-15"),
+    ymin = -Inf,
+    ymax = Inf,
+    alpha = 0.2,
+    fill = "blue"
+  )
+```
+
+
+Split data into pre and experiment
+
+```{r}
+pre_intervention_only_tbl <- hotel_bookings_raw_tbl |> 
+  filter_by_time(.start_date = PRE_INTERVENTION[1], .end_date = PRE_INTERVENTION[2])
+
+experiment_only_tbl <- hotel_bookings_raw_tbl |> 
+  filter_by_time(.start_date = POST_INTERVENTION[1], .end_date = POST_INTERVENTION[2])
+```
+
+### Data Exploration
+
+Check Balance & Sample Size
+
+- Is balanced?
+
+- Sample size > 30?
+
+```{r}
+pre_intervention_only_tbl |> count(assignment)
+
+```
+
+```{r}
+experiment_only_tbl |> count(assignment)
+```
+
+Check Sales Distribution
+
+- Is balanced?
+
+```{r}
+pre_intervention_only_tbl |> 
+  group_by(assignment) |> 
+  summarise(bookings = sum(bookings))
+```
+
+```{r}
+experiment_only_tbl |> 
+  group_by(assignment) |> 
+  summarise(bookings = sum(bookings))
+```
+
+Visualise the distribution
+
+```{r}
+experiment_only_tbl |> 
+  ggplot(aes(x = bookings, fill = assignment)) +
+  geom_density(colour = "white", alpha = 0.75) +
+  theme_minimal()
+```
+
+Booking Summary
+
+```{r}
+summary_experiment_tbl <- experiment_only_tbl |> 
+  select(assignment, bookings, cost) |> 
+  group_by(assignment) |> 
+  summarise(
+    bookings_mean_before_log = mean(bookings),
+    bookings_mean_log = mean(log(bookings)),
+    cost_mean = mean(cost)
+  )
+
+summary_experiment_tbl
+```
+
+Visualise the log distribution
+
+```{r}
+g <- experiment_only_tbl |> 
+  ggplot(aes(log(bookings), fill = assignment)) +
+  geom_density(color = "white", alpha = 0.75) +
+  geom_vline(aes(xintercept = bookings_mean_log), color = "black",
+             linetype = "dashed", data = summary_experiment_tbl) +
+  theme_minimal()
+
+ggplotly(g)
+```
+
+### A/B Test: Difference in Means
+
+Comparing 2 continuous groups, so use a 2-sided t-test to calculate the difference in means between the 2 populations.
+
+```{r}
+diff_in_means_data_tbl <- experiment_only_tbl |> 
+  select(assignment, bookings)
+```
+
+```{r}
+test_statistic_tbl <- diff_in_means_data_tbl |> 
+  t_test(
+    bookings ~ assignment,
+    order = c("treatment", "control"),
+    alternative = "two-sided"
+  )
+
+test_statistic_tbl
+```
+
+Linear Regression
+
+If you are doing a 2-sample t-test, this is actually the same thing. More imprtantly, linear regression can help with more complex problems that contain multiple regressors.
+
+```{r}
+lm(bookings ~ assignment, data = diff_in_means_data_tbl) |> summary()
+```
+
+Average Treatment Effect (ATE)
+
+```{r}
+ate <- test_statistic_tbl$estimate
+
+ate
+```
+
+```{r}
+diff_in_means_data_tbl |> count(assignment) |> pull(n) |> pluck(2)
+```
+
+N * ATE
+
+```{r}
+bookings_increase <- 1393 * 96
+```
+
+N * ATE / COST
+
+```{r}
+ROAS <- 1393 * 96 / 50000
+
+ROAS
+```
+
+We can see that the **Estimated ROAS is 2.67**. This means that for every dollar spent on the marketing campaign, we get $2.67 back in bookings.
+
+### Conclusions
+
+We have answered the two questions that we set out to answer:
+
+1. **Does Adspend increase bookings?** Yes, there is a statistically significant effect. At a 0.10 level, we can say that there is a statistically significant effect. **The Average Treatment Effect is $96.20**.
+
+2. **By how much? Was there a Return on Adspend (ROAS)?** Yes, there was a return on adspend. **The Estimated ROAS is 2.67**. This means that for every dollar spent on the marketing campaign, we get $2.67 back in bookings.
